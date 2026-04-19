@@ -1,6 +1,9 @@
 import sqlite3
+from pathlib import Path
 
-def init_db(path="commodity.db"):
+DEFAULT_DB_PATH = str(Path(__file__).resolve().parent.parent / "commodity.db")
+
+def init_db(path=DEFAULT_DB_PATH):
     conn = sqlite3.connect(path)
     cur = conn.cursor()
 

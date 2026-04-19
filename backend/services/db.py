@@ -1,6 +1,7 @@
 import sqlite3
+from pathlib import Path
 
-DB_PATH = "commodity.db"
+DB_PATH = str(Path(__file__).resolve().parent.parent / "commodity.db")
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
@@ -13,12 +14,13 @@ def insert_prices(records: list[dict]):
     Skips duplicates silently via INSERT OR IGNORE.
     """
     conn = get_conn()
-    conn.executemany("""
+    cur = conn.cursor()
+    cur.executemany("""
         INSERT OR IGNORE INTO prices (date, commodity, price, unit, source)
         VALUES (:date, :commodity, :price, :unit, :source)
     """, records)
     conn.commit()
-    inserted = conn.total_changes
+    inserted = cur.rowcount
     conn.close()
     print(f"  Inserted {inserted} new rows.")
 
