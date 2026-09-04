@@ -5,7 +5,20 @@ from ml.anomaly import detect_anomalies
 
 DB_PATH = "commodity.db"
 
-COMMODITIES = ["crude_oil", "natural_gas", "brent_crude", "gasoline"]
+COMMODITIES = ["crude_oil", "natural_gas", "brent_crude", "gasoline", "heating_oil"]
+
+# Horizon (in days) precomputed on the schedule. Other horizons fall through
+# to live computation, so the cache key has to carry the horizon — otherwise a
+# request for 90 days would be served the cached 30-day forecast.
+CACHED_HORIZON = 30
+
+
+def forecast_key(commodity: str, horizon: int = CACHED_HORIZON) -> str:
+    return f"forecast:{commodity}:{horizon}"
+
+
+def anomalies_key(commodity: str) -> str:
+    return f"anomalies:{commodity}"
 
 def init_cache_table():
     conn = sqlite3.connect(DB_PATH)
@@ -41,15 +54,15 @@ def refresh_all_caches():
     print("Refreshing ML caches...")
     for commodity in COMMODITIES:
         try:
-            forecast = run_forecast(commodity, horizon=30)
-            write_cache(f"forecast:{commodity}", forecast)
+            forecast = run_forecast(commodity, horizon=CACHED_HORIZON)
+            write_cache(forecast_key(commodity), forecast)
             print(f"  Cached forecast for {commodity}")
         except Exception as e:
             print(f"  Forecast failed for {commodity}: {e}")
 
         try:
             anomalies = detect_anomalies(commodity)
-            write_cache(f"anomalies:{commodity}", anomalies)
+            write_cache(anomalies_key(commodity), anomalies)
             print(f"  Cached anomalies for {commodity}")
         except Exception as e:
             print(f"  Anomaly detection failed for {commodity}: {e}")

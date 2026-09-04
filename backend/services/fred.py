@@ -4,6 +4,8 @@ import os
 import requests
 from dotenv import load_dotenv
 
+from services.http import get_with_retry
+
 load_dotenv()
 FRED_KEY = os.getenv("FRED_API_KEY")
 BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
@@ -29,8 +31,7 @@ def fetch_fred_series(commodity: str, start: str = "2020-01-01") -> list[dict]:
         "sort_order":       "asc",
     }
 
-    resp = requests.get(BASE_URL, params=params, timeout=REQUEST_TIMEOUT)
-    resp.raise_for_status()
+    resp = get_with_retry(BASE_URL, params=params, timeout=REQUEST_TIMEOUT)
     observations = resp.json().get("observations", [])
 
     records = []
