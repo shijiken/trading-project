@@ -69,3 +69,40 @@ def test_refresh_writes_under_the_cached_horizon_key(temp_db, monkeypatch):
 
     assert cache.read_cache(cache.forecast_key("crude_oil", cache.CACHED_HORIZON)) == [{"h": cache.CACHED_HORIZON}]
     assert cache.read_cache(cache.forecast_key("crude_oil", 90)) is None
+
+
+def test_cache_entry_is_fresh_while_no_new_prices_land(seeded_db):
+    as_of = cache.latest_price_date("crude_oil")
+    cache.write_cache("forecast:crude_oil:30", [{"a": 1}], "crude_oil", as_of)
+
+    assert cache.read_cache("forecast:crude_oil:30") == [{"a": 1}]
+
+
+def test_cache_entry_goes_stale_when_newer_prices_are_loaded(seeded_db):
+    # Simulates a failed post-ETL refresh: the entry was fitted on old data,
+    # then new prices landed, so it must be treated as a miss.
+    from services.db import insert_prices
+
+    as_of = cache.latest_price_date("crude_oil")
+    cache.write_cache("forecast:crude_oil:30", [{"a": 1}], "crude_oil", as_of)
+
+    insert_prices([{"date": "2099-01-01", "commodity": "crude_oil", "price": 80.0,
+                    "unit": "USD/barrel", "source": "TEST"}])
+
+    assert cache.read_cache("forecast:crude_oil:30") is None
+
+
+def test_init_cache_table_rebuilds_pre_freshness_schema(temp_db):
+    import sqlite3
+    conn = sqlite3.connect(temp_db)
+    conn.execute("DROP TABLE ml_cache")
+    conn.execute("CREATE TABLE ml_cache (key TEXT PRIMARY KEY, result TEXT NOT NULL, updated TEXT)")
+    conn.execute("INSERT INTO ml_cache (key, result) VALUES ('forecast:crude_oil:30', '[]')")
+    conn.commit()
+    conn.close()
+
+    cache.init_cache_table()
+
+    assert cache.read_cache("forecast:crude_oil:30") is None
+    cache.write_cache("k", [{"a": 1}], "crude_oil", None)
+    assert cache.read_cache("k") == [{"a": 1}]
