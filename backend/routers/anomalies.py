@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
-from ml.cache import read_cache
+from ml.cache import read_cache, anomalies_key
 from ml.anomaly import detect_anomalies
+from services.commodities import is_known, KNOWN_COMMODITIES
 
 router = APIRouter()
 
@@ -10,9 +11,17 @@ def anomalies(
     start:     str = Query(None),
     end:       str = Query(None),
 ):
-    cached = read_cache(f"anomalies:{commodity}")
-    if cached:
-        return cached
+    if not is_known(commodity):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown commodity '{commodity}'. Known: {sorted(KNOWN_COMMODITIES)}",
+        )
+
+    # The cache holds the full-history result, so only serve it for unfiltered requests
+    if not start and not end:
+        cached = read_cache(anomalies_key(commodity))
+        if cached:
+            return cached
 
     try:
         return detect_anomalies(commodity, start=start, end=end)

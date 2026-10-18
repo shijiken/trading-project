@@ -4,6 +4,8 @@ import os
 import requests
 from dotenv import load_dotenv
 
+from services.http import get_with_retry
+
 load_dotenv()
 EIA_KEY = os.getenv("EIA_API_KEY")
 BASE_URL = "https://api.eia.gov/v2"
@@ -13,9 +15,9 @@ REQUEST_TIMEOUT = 30
 log = logging.getLogger(__name__)
 
 EIA_SERIES = {
-    "crude_oil":    ("petroleum/pri/spt/data/", "RWTC",                    "USD/barrel"),
-    "natural_gas":  ("natural-gas/pri/sum/data/", "RNGWHHD",               "USD/MMBtu"),
-    "heating_oil":  ("petroleum/pri/spt/data/", "EER_EPD2F_PF4_RGC_DPG",   "USD/gallon"),
+    "crude_oil":    ("petroleum/pri/spt/data/", "RWTC",                       "USD/barrel"),
+    "natural_gas":  ("natural-gas/pri/fut/data/", "RNGWHHD",                  "USD/MMBtu"),
+    "heating_oil":  ("petroleum/pri/spt/data/", "EER_EPD2F_PF4_Y35NY_DPG",    "USD/gallon"),
 }
 
 def fetch_eia_series(commodity: str, start: str = "2020-01-01") -> list[dict]:
@@ -35,8 +37,7 @@ def fetch_eia_series(commodity: str, start: str = "2020-01-01") -> list[dict]:
             "length": PAGE_SIZE,
             "offset": offset,
         }
-        resp = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
+        resp = get_with_retry(url, params=params, timeout=REQUEST_TIMEOUT)
         data = resp.json().get("response", {}).get("data", [])
 
         for row in data:

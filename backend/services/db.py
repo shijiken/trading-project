@@ -8,6 +8,18 @@ def get_conn():
     conn.row_factory = sqlite3.Row  # rows behave like dicts
     return conn
 
+def configure_db():
+    """
+    Switch the database to WAL so the 6-hourly ETL write doesn't block reads.
+    journal_mode is persisted in the file itself, so this only has to stick once.
+    """
+    conn = get_conn()
+    mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.commit()
+    conn.close()
+    return mode
+
 def insert_prices(records: list[dict]):
     """
     records: list of {date, commodity, price, unit, source}
@@ -38,5 +50,20 @@ def get_prices(commodity: str, start: str | None = None, end: str | None = None)
 
     query += " ORDER BY date ASC"
     rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_data_freshness():
+    """Per-commodity row count and latest observation date, for /health."""
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT commodity,
+               COUNT(*)   AS rows,
+               MAX(date)  AS latest,
+               MIN(date)  AS earliest
+        FROM prices
+        GROUP BY commodity
+        ORDER BY commodity
+    """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
